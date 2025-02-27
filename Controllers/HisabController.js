@@ -1,29 +1,39 @@
-const { Hisab } = require('../Modals');
+const { Hisab } = require('../Models/Modals');
 const { log } = console;
 const { generateUID } = require('../MiddleWare/Sequence'); // Import generateUID
 
 // Create a new hisab entry
-const createHisab = async (req, res) => {
+const createHisab = async (req, res = null) => {
     try {
-        const { username } = req.body;
+        const { username, amount, date, previousBalance } = req.body;
         
-        // Check if hisab already exists
-        let existingHisab = await Hisab.findOne({ username });
-        if (existingHisab) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'Hisab already exists for this user' 
-            });
+        if (!username || amount === undefined) {
+            const error = { success: false, error: 'Username and amount are required' };
+            return res ? res.status(400).json(error) : error;
         }
 
-        const uid = await generateUID(Hisab); // Generate unique UID
-        const hisab = new Hisab({ username, uid });
-        await hisab.save();
+        // Generate new UID for hisab entry
+        const uid = await generateUID(Hisab);
+
+        // Create new hisab entry with exact timestamp and previous balance
+        const hisab = new Hisab({
+            username,
+            amount: Number(amount),
+            date: date || new Date(), // Use provided date or current timestamp
+            previousBalance: Number(previousBalance || 0), // Store total balance before this payment
+            uid
+        });
+
+        const savedHisab = await hisab.save();
+        console.log(`Created new hisab entry for ${username} at ${savedHisab.date}`);
+
+        const response = { success: true, data: savedHisab };
+        return res ? res.status(201).json(response) : response;
         
-        res.status(201).json({ success: true, data: hisab });
     } catch (error) {
-        log('Error in createHisab:', error);
-        res.status(500).json({ success: false, error: error.message });
+        console.log('Error in createHisab:', error);
+        const errorResponse = { success: false, error: error.message };
+        return res ? res.status(500).json(errorResponse) : errorResponse;
     }
 };
 

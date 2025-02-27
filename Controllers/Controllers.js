@@ -4,7 +4,24 @@ const fs = require("fs");
 const path = require("path");
 const ffmpeg1 = require("fluent-ffmpeg");
 const { whispherHandle } = require("./AiController");
-const { sendConfirmationMsg } = require("../MiddleWare/WhatsAppSendBacks");
+const { 
+  sendErrorMessage, 
+  sendCreditHistory,
+  sendDeleteConfirmation,
+  sendPurchaseHistory,
+  sendSalesHistory,
+  sendPaymentConfirmation,
+  sendFullPaymentConfirmation,
+  sendHisabPartialConfirmation,
+  sendHisabFullConfirmation,
+  sendSalesConfirmation,
+  sendSavedItemsConfirmation
+} = require("../MiddleWare/WhatsAppSendBacks");
+const { getCreditsByUser, deleteCredit,createCredit } = require("./CreditController");
+const { getPurchasesByDateRange, deletePurchase } = require("./BuyController");
+const { getSalesByDate, getSalesByDateRange } = require("./SalesController");
+const { createHisab, getHisabByUser, updateHisab } = require("./HisabController");
+const { Credit, Hisab } = require('../Models/Modals');
 
 
 const userState = {};
@@ -70,4 +87,409 @@ const audioHandle = async (message, TOK) => {
   });
 };
 
-module.exports = { audioHandle };
+const handleGetCredit = async (userId, username) => {
+  try {
+    if (!username) {
+      await sendErrorMessage(userId, "❌ Please provide a username. Example: get john");
+      return;
+    }
+
+    // Get the latest hisab entry
+    const latestHisab = await Hisab.findOne({ username }).sort({ date: -1 });
+    
+    // Get only credits after the latest hisab
+    let credits;
+    if (latestHisab) {
+      credits = await Credit.find({
+        username,
+        date: { $gt: latestHisab.date }
+      }).sort({ date: -1 });
+    } else {
+      credits = await Credit.find({ username }).sort({ date: -1 });
+    }
+
+    if (credits.length === 0) {
+      await sendErrorMessage(userId, `❌ No credit history found for ${username}`);
+      return;
+    }
+
+    const totalOutstanding = credits.reduce((sum, credit) => sum + credit.amount, 0);
+
+    await sendCreditHistory(
+      userId, 
+      username, 
+      credits,
+      latestHisab,
+      totalOutstanding
+    );
+
+  } catch (error) {
+    console.error("Error in handleGetCredit:", error);
+    await sendErrorMessage(userId, "❌ Error retrieving credit history");
+  }
+};
+
+const handleDeleteCredit = async (userId, uid) => {
+  try {
+    if (!uid) {
+      await sendErrorMessage(userId, "❌ Please provide a UID. Example: delete credit ABC123");
+      return;
+    }
+
+    const reqMock = { params: { uid } };
+    const resMock = {
+      status: (code) => ({
+        json: async (data) => {
+          if (data.success) {
+            await sendDeleteConfirmation(userId, 'credit', data.data);
+          } else {
+            await sendErrorMessage(userId, `❌ No credit entry found with UID: ${uid}`);
+          }
+          return data;
+        }
+      })
+    };
+
+    await deleteCredit(reqMock, resMock);
+  } catch (error) {
+    console.error("Error in handleDeleteCredit:", error);
+    await sendErrorMessage(userId, "❌ Error deleting credit entry");
+  }
+};
+
+const handleDeleteBuy = async (userId, uid) => {
+  try {
+    if (!uid) {
+      await sendErrorMessage(userId, "❌ Please provide a UID. Example: delete buy XYZ789");
+      return;
+    }
+
+    const reqMock = { params: { uid } };
+    const resMock = {
+      status: (code) => ({
+        json: async (data) => {
+          if (data.success) {
+            await sendDeleteConfirmation(userId, 'purchase', data.data);
+          } else {
+            await sendErrorMessage(userId, `❌ No purchase entry found with UID: ${uid}`);
+          }
+          return data;
+        }
+      })
+    };
+
+    await deletePurchase(reqMock, resMock);
+  } catch (error) {
+    console.error("Error in handleDeleteBuy:", error);
+    await sendErrorMessage(userId, "❌ Error deleting purchase entry");
+  }
+};
+
+const handleGetBuy = async (userId, dateRange) => {
+  try {
+    if (!dateRange) {
+      await sendErrorMessage(userId, "❌ Please provide a date. Example: get buy 27.02.24");
+      return;
+    }
+
+    let startDate, endDate;
+
+    if (dateRange.includes('-')) {
+      // Handle date range (e.g., 27.02.24-29.02.24)
+      const [start, end] = dateRange.split('-').map(d => d.trim());
+      startDate = parseDateString(start);
+      endDate = parseDateString(end);
+      // Include the entire end date
+      endDate.setDate(endDate.getDate() + 1);
+    } else {
+      // Handle single date (e.g., 27.02.24)
+      startDate = parseDateString(dateRange);
+      endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + 1);
+    }
+
+    if (!startDate || !endDate) {
+      await sendErrorMessage(userId, "❌ Invalid date format. Use: DD.MM.YY or DD.MM.YY-DD.MM.YY");
+      return;
+    }
+
+    const reqMock = { 
+      query: { 
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString()
+      } 
+    };
+
+    const resMock = {
+      status: (code) => ({
+        json: async (data) => {
+          if (data.success && data.data.purchases?.length > 0) {
+            await sendPurchaseHistory(userId, dateRange, data.data);
+          } else {
+            await sendErrorMessage(userId, `❌ No purchases found for ${dateRange}`);
+          }
+          return data;
+        }
+      })
+    };
+
+    await getPurchasesByDateRange(reqMock, resMock);
+  } catch (error) {
+    console.error("Error in handleGetBuy:", error);
+    await sendErrorMessage(userId, "❌ Error retrieving purchase history");
+  }
+};
+
+// Helper function to parse date strings
+function parseDateString(dateStr) {
+  try {
+    const [day, month, year] = dateStr.split('.');
+    // Assuming YY format, convert to YYYY
+    const fullYear = year.length === 2 ? '20' + year : year;
+    return new Date(`${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`);
+  } catch (error) {
+    return null;
+  }
+}
+
+const handleGetSales = async (userId, dateRange) => {
+  try {
+    if (!dateRange) {
+      await sendErrorMessage(userId, "❌ Please provide a date or date range. Example: get sales 27.2.25 or get sales 27.2.25-29.2.25");
+      return;
+    }
+
+    let startDate, endDate;
+    if (dateRange.includes('-')) {
+      // Date range case
+      const [start, end] = dateRange.split('-');
+      startDate = convertToDate(start);
+      endDate = convertToDate(end);
+      endDate.setDate(endDate.getDate() + 1); // Include the end date fully
+    } else {
+      // Single date case
+      startDate = convertToDate(dateRange);
+      endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + 1);
+    }
+
+    const reqMock = { 
+      query: { 
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString()
+      } 
+    };
+    const resMock = {
+      status: (code) => ({
+        json: async (data) => {
+          if (data.success && data.data.length > 0) {
+            await sendSalesHistory(userId, dateRange, data.data);
+          } else {
+            await sendErrorMessage(userId, `❌ No sales found for ${dateRange}`);
+          }
+          return data;
+        }
+      })
+    };
+
+    await getSalesByDateRange(reqMock, resMock);
+  } catch (error) {
+    console.error("Error in handleGetSales:", error);
+    await sendErrorMessage(userId, "❌ Error retrieving sales history");
+  }
+};
+
+const handleAddSales = async (userId, onlineSales, offlineSales) => {
+  try {
+    const reqMock = {
+      body: {
+        onlineSales,
+        offlineSales,
+        totalSales: onlineSales + offlineSales,
+        date: new Date()
+      }
+    };
+    const resMock = {
+      status: (code) => ({
+        json: async (data) => {
+          if (data.success) {
+            await sendSalesConfirmation(userId, data.data);
+          } else {
+            await sendErrorMessage(userId, "❌ Error saving sales data");
+          }
+          return data;
+        }
+      })
+    };
+
+    await createSales(reqMock, resMock);
+  } catch (error) {
+    console.error("Error in handleAddSales:", error);
+    await sendErrorMessage(userId, "❌ Error adding sales");
+  }
+};
+
+// Helper function to convert date string to Date object
+function convertToDate(dateStr) {
+  const [day, month, year] = dateStr.split('.');
+  return new Date(`20${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`);
+}
+
+const handleHisab = async (userId, username, paidAmount) => {
+    try {
+        if (!username || !paidAmount) {
+            await sendErrorMessage(userId, "❌ Please provide username and amount. Example: hisab john 150");
+            return;
+        }
+
+        paidAmount = parseFloat(paidAmount);
+
+        // 1. First check for latest hisab entry
+        const latestHisab = await Hisab.findOne({ username })
+            .sort({ date: -1 });
+
+        // 2. Get credits based on hisab existence
+        let credits;
+        if (latestHisab) {
+            // If hisab exists, get credits after the exact date and time
+            credits = await Credit.find({
+                username,
+                date: { $gt: latestHisab.date } // Get credits after exact hisab date/time
+            }).sort({ date: 1 }); // Sort from oldest to newest
+            
+            console.log(`Found ${credits.length} credits after last hisab dated ${latestHisab.date}`);
+        } else {
+            // If no hisab exists, get all credits (new user)
+            credits = await Credit.find({ username })
+                .sort({ date: 1 }); // Sort from oldest to newest
+            
+            console.log(`No previous hisab found. Found ${credits.length} total credits`);
+        }
+
+        // 3. Check if we have any credits to process
+        if (credits.length === 0) {
+            await sendErrorMessage(
+                userId, 
+                latestHisab 
+                    ? `❌ No new credits found for ${username} after last hisab on ${latestHisab.date.toLocaleDateString()}`
+                    : `❌ No credits found for ${username}`
+            );
+            return;
+        }
+
+        // 4. Calculate total outstanding
+        const totalCredit = credits.reduce((sum, credit) => sum + credit.amount, 0);
+        const remainingAmount = totalCredit - paidAmount;
+
+        try {
+            // 5. Create new hisab entry with exact timestamp
+            const hisabReqMock = {
+                body: {
+                    username,
+                    amount: paidAmount,
+                    date: new Date(), // Current exact timestamp
+                    previousBalance: totalCredit // Store total balance for reference
+                }
+            };
+
+            const hisabResult = await createHisab(hisabReqMock);
+            
+            if (!hisabResult.success) {
+                throw new Error(hisabResult.error);
+            }
+
+            // 6. Handle remaining balance if partial payment
+            if (remainingAmount > 0) {
+                // Create a new credit entry for remaining amount
+                const itemsSummary = credits
+                    .map(c => c.itemNameAndQuantity)
+                    .join(', ')
+                    .slice(0, 100) + '...';
+
+                const creditReqMock = {
+                    body: {
+                        data: [{
+                            username,
+                            itemNameAndQuantity: `Previous Balance (${itemsSummary})`,
+                            amount: remainingAmount,
+                            date: new Date() // Ensure this is after hisab entry
+                        }]
+                    }
+                };
+
+                const creditResult = await createCredit(creditReqMock);
+                
+                if (!creditResult.success) {
+                    throw new Error(creditResult.error);
+                }
+
+                await sendHisabPartialConfirmation(
+                    userId,
+                    username,
+                    paidAmount,
+                    remainingAmount,
+                    totalCredit
+                );
+            } else {
+                await sendHisabFullConfirmation(
+                    userId,
+                    username,
+                    paidAmount,
+                    totalCredit
+                );
+            }
+
+        } catch (error) {
+            console.error("Error processing hisab:", error);
+            await sendErrorMessage(userId, "❌ Error processing payment");
+        }
+
+    } catch (error) {
+        console.error("Error in handleHisab:", error);
+        await sendErrorMessage(userId, "❌ Error processing hisab entry");
+    }
+};
+
+const handleAddBuy = async (userId, itemName, purchasePrice, sellingPrice) => {
+  try {
+    const reqMock = {
+      body: {
+        data: [{
+          itemNameAndQuantity: itemName,
+          purchasePrice,
+          sellingPrice,
+          date: new Date()
+        }]
+      }
+    };
+    const resMock = {
+      status: (code) => ({
+        json: async (data) => {
+          if (data.success) {
+            await sendSavedItemsConfirmation(userId, data.data);
+          } else {
+            await sendErrorMessage(userId, "❌ Error saving purchase data");
+          }
+          return data;
+        }
+      })
+    };
+
+    await createBuy(reqMock, resMock);
+  } catch (error) {
+    console.error("Error in handleAddBuy:", error);
+    await sendErrorMessage(userId, "❌ Error adding purchase");
+  }
+};
+
+module.exports = { 
+  audioHandle,
+  handleGetCredit,
+  handleDeleteCredit,
+  handleDeleteBuy,
+  handleGetBuy,
+  handleGetSales,
+  handleHisab,
+  handleAddSales,
+  handleAddBuy
+};

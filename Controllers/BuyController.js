@@ -82,11 +82,16 @@ const getPurchasesByDateRange = async (req, res) => {
         }).sort({ date: -1 });
 
         // Calculate total amount
-        const totalAmount = purchases.reduce((sum, purchase) => sum + purchase.amount, 0);
+        const totalPurchaseAmount = purchases.reduce((sum, purchase) => sum + purchase.purchasePrice, 0);
+        const totalSellingAmount = purchases.reduce((sum, purchase) => sum + purchase.sellingPrice, 0);
 
         res.status(200).json({ 
             success: true, 
-            data: { purchases, totalAmount } 
+            data: { 
+                purchases, 
+                totalPurchaseAmount,
+                totalSellingAmount 
+            } 
         });
     } catch (error) {
         log('Error in getPurchasesByDateRange:', error);

@@ -1,12 +1,18 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const { log } = console;
-const { audioHandle } = require("./Controllers/Controllers");
+const { audioHandle, handleGetCredit, handleDeleteCredit, handleDeleteBuy, handleGetBuy, handleGetSales, handleHisab } = require("./Controllers/Controllers");
 const { mistralHandle } = require("./Controllers/AiController");
-const { getMessageContext, sendSavedItemsConfirmation, sendErrorMessage } = require("./MiddleWare/WhatsAppSendBacks");
+const { 
+  getMessageContext, 
+  sendSavedItemsConfirmation, 
+  sendErrorMessage, 
+  sendCreditHistory,
+  sendHelpMessage 
+} = require("./MiddleWare/WhatsAppSendBacks");
 const { createBuy } = require("./Controllers/BuyController");
 const axios = require("axios");
-const { createCredit } = require("./Controllers/CreditController");
+const { createCredit, getCreditsByUser } = require("./Controllers/CreditController");
 
 const app = express();
 app.use(express.json());
@@ -36,6 +42,86 @@ app.get("/webhook", async (req, res) => {
   }
 });
 
+// Command handlers object for better organization
+const commandHandlers = {
+  get: async (userId, command) => {
+    const [type, ...params] = command.split(' ');
+    
+    switch(type) {
+      case 'buy':
+        const dateRange = params.join(' ');
+        await handleGetBuy(userId, dateRange);
+        break;
+      
+      case 'sales':
+        const salesDateRange = params.join(' ');
+        await handleGetSales(userId, salesDateRange);
+        break;
+      
+      default:
+        // Handle get credit case
+        const username = command;
+        if (!username) {
+          await sendErrorMessage(userId, "❌ Please provide a username. Example: get john");
+        } else {
+          await handleGetCredit(userId, username);
+        }
+    }
+  },
+
+  delete: async (userId, command) => {
+    const [type, uid] = command.split(' ');
+    
+    switch(type) {
+      case 'credit':
+        await handleDeleteCredit(userId, uid);
+        break;
+      
+      case 'buy':
+        await handleDeleteBuy(userId, uid);
+        break;
+      
+      default:
+        await sendErrorMessage(userId, "❌ Invalid delete command. Use: delete credit/buy <UID>");
+    }
+  },
+
+  buy: async (userId, command) => {
+    const parts = command.split(' ');
+    if (parts.length !== 3) {
+      await sendErrorMessage(userId, "❌ Invalid format. Use: buy <item> <purchase_price> <selling_price>");
+      return;
+    }
+    const [itemName, purchasePrice, sellingPrice] = parts;
+    await handleAddBuy(userId, itemName, Number(purchasePrice), Number(sellingPrice));
+  },
+
+  sales: async (userId, command) => {
+    const parts = command.split(' ');
+    if (parts.length !== 2) {
+      await sendErrorMessage(userId, "❌ Invalid format. Use: sales <online> <offline>");
+      return;
+    }
+    const [onlineSales, offlineSales] = parts.map(Number);
+    await handleAddSales(userId, onlineSales, offlineSales);
+  },
+
+  hisab: async (userId, command) => {
+    const parts = command.split(' ');
+    if (parts.length !== 2) {
+      await sendErrorMessage(userId, "❌ Invalid format. Use: hisab <username> <amount>");
+      return;
+    }
+    const [username, amount] = parts;
+    await handleHisab(userId, username, amount);
+  },
+
+  help: async (userId) => {
+    await sendHelpMessage(userId);
+  }
+};
+
+// Update the webhook POST handler
 app.post("/webhook", async (req, res) => {
   try {
     const message = req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
@@ -46,8 +132,17 @@ app.post("/webhook", async (req, res) => {
     }
 
     if (message?.type === "text") {
-      log("Text message received:", message.text.body);
-      await mistralHandle(message.text.body, message.from);
+      const messageText = message.text.body.trim().toLowerCase();
+      const userId = message.from;
+
+      // Extract command and remaining text
+      const [command, ...args] = messageText.split(' ');
+      
+      if (commandHandlers[command]) {
+        await commandHandlers[command](userId, args.join(' '));
+      } else {
+        await mistralHandle(messageText, userId);
+      }
     }
 
     // Enhanced interactive message handling

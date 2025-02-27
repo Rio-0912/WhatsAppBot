@@ -1,4 +1,4 @@
-const { Sales } = require('../Modals');
+const { Sales } = require('../Models/Modals');
 const { log } = console;
 const { generateUID } = require('../MiddleWare/Sequence'); // Import generateUID
 
