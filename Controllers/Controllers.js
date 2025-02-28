@@ -22,6 +22,7 @@ const { getPurchasesByDateRange, deletePurchase } = require("./BuyController");
 const { getSalesByDate, getSalesByDateRange } = require("./SalesController");
 const { createHisab, getHisabByUser, updateHisab } = require("./HisabController");
 const { Credit, Hisab } = require('../Models/Modals');
+const mongoose = require('mongoose');
 
 
 const userState = {};
@@ -94,22 +95,67 @@ const handleGetCredit = async (userId, username) => {
       return;
     }
 
-    // Get the latest hisab entry
-    const latestHisab = await Hisab.findOne({ username }).sort({ date: -1 })
-    log(latestHisab)
-    // Get only credits after the latest hisab
-    let credits;
-    if (latestHisab) {
-      credits = await Credit.find({
-        username,
-        date: { $gt: latestHisab.date }
-      }).sort({ date: -1 });
-    } else {
-      credits = await Credit.find({ username }).sort({ date: -1 });
+    // Check MongoDB connection state
+    if (mongoose.connection.readyState !== 1) {
+      await sendErrorMessage(userId, "❌ Database connection issue. Please try again.");
+      return;
+    }
+
+    // Get the latest hisab entry with timeout and retry logic
+    let latestHisab = null;
+    let retries = 3;
+
+    while (retries > 0) {
+      try {
+        latestHisab = await Promise.race([
+          Hisab.findOne({ username }).sort({ date: -1 }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Query timeout')), 5000)
+          )
+        ]);
+        break; // If successful, exit the loop
+      } catch (error) {
+        retries--;
+        if (retries === 0) {
+          throw error;
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+      }
+    }
+
+    // Get credits with similar retry logic
+    let credits = [];
+    retries = 3;
+
+    while (retries > 0) {
+      try {
+        if (latestHisab) {
+          credits = await Credit.find({
+            username,
+            date: { $gt: latestHisab.date }
+          }).sort({ date: -1 }).maxTimeMS(5000);
+        } else {
+          credits = await Credit.find({ username })
+            .sort({ date: -1 })
+            .maxTimeMS(5000);
+        }
+        break;
+      } catch (error) {
+        retries--;
+        if (retries === 0) {
+          throw error;
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
     }
 
     if (credits.length === 0) {
-      await sendErrorMessage(userId, `❌ No credit history found for ${username}`);
+      await sendErrorMessage(
+        userId, 
+        latestHisab 
+          ? `❌ No new credits found for ${username} after last hisab on ${latestHisab.date.toLocaleDateString()}`
+          : `❌ No credits found for ${username}`
+      );
       return;
     }
 
@@ -125,7 +171,16 @@ const handleGetCredit = async (userId, username) => {
 
   } catch (error) {
     console.error("Error in handleGetCredit:", error);
-    await sendErrorMessage(userId, "❌ Error retrieving credit history");
+    
+    // Send more specific error message based on error type
+    let errorMessage = "❌ Error retrieving credit history";
+    if (error.name === 'MongooseError' && error.message.includes('buffering timed out')) {
+      errorMessage = "❌ Database timeout. Please try again.";
+    } else if (error.name === 'MongooseError' && error.message.includes('disconnected')) {
+      errorMessage = "❌ Database connection lost. Please try again.";
+    }
+    
+    await sendErrorMessage(userId, errorMessage);
   }
 };
 
