@@ -95,8 +95,8 @@ const handleGetCredit = async (userId, username) => {
     }
 
     // Get the latest hisab entry
-    const latestHisab = await Hisab.findOne({ username }).sort({ date: -1 });
-    
+    const latestHisab = await Hisab.findOne({ username }).sort({ date: -1 })
+    log(latestHisab)
     // Get only credits after the latest hisab
     let credits;
     if (latestHisab) {
@@ -400,23 +400,30 @@ const handleHisab = async (userId, username, paidAmount) => {
 
             // 6. Handle remaining balance if partial payment
             if (remainingAmount > 0) {
+                // Add delay to ensure proper ordering
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
                 // Create a new credit entry for remaining amount
                 const itemsSummary = credits
                     .map(c => c.itemNameAndQuantity)
-                    .join(', ')
-                    .slice(0, 100) + '...';
+                    .filter(item => !item.startsWith('Previous Balance')) // Filter out previous balance entries
+                    .join(', ');
+
+                const description = itemsSummary 
+                    ? `Outstanding Amount (${itemsSummary})`
+                    : 'Outstanding Amount';
 
                 const creditReqMock = {
                     body: {
                         data: [{
                             username,
-                            itemNameAndQuantity: `Previous Balance (${itemsSummary})`,
+                            itemNameAndQuantity: description,
                             amount: remainingAmount,
                             date: new Date() // Ensure this is after hisab entry
                         }]
                     }
                 };
-
+                
                 const creditResult = await createCredit(creditReqMock);
                 
                 if (!creditResult.success) {
