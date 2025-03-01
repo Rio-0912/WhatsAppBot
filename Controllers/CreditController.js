@@ -20,7 +20,7 @@ const createCredit = async (req, res = null) => {
                 username: item.username,
                 itemNameAndQuantity: item.itemNameAndQuantity,
                 amount: item.amount,
-                date: item.date || new Date(),  // Ensure date is set
+                // date: item.date || new Date(),  // Ensure date is set
                 uid
             });
 

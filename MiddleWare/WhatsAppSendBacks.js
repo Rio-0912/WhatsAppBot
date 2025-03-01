@@ -1,7 +1,9 @@
 const axios = require("axios");
+const moment = require('moment-timezone');
 const logger = require("../utils/logger");
+const { formatIndianTime } = require('../utils/dateHelper');
 
-// Create a message store with auto-cleanup
+// Only use formatIndianTime when displaying dates
 const messageStore = new Map();
 
 // Cleanup old messages every 10 minutes
@@ -14,6 +16,10 @@ setInterval(() => {
     }
   }
 }, 300000); // Run every 5 minutes
+
+const formatMessageDate = (date) => {
+  return moment(date).tz('Asia/Kolkata').format('DD MMM YY, hh:mm A');
+};
 
 const sendConfirmationMsg = async (to, extractedText, isWholesale = false) => {
   const TOK = process.env.TOK;
@@ -207,7 +213,7 @@ const sendErrorMessage = async (to, errorMessage = "❌ Sorry, there was an erro
   }
 };
 
-const sendCreditHistory = async (to, username, credits, latestHisab = null, totalOutstanding) => {
+const sendCreditHistory = async (to, username, credits, latestHisab, totalOutstanding) => {
   const TOK = process.env.TOK;
   
   try {
@@ -243,7 +249,7 @@ const sendCreditHistory = async (to, username, credits, latestHisab = null, tota
           hour12: true
         });
 
-        return `📅 ${formattedDate}\n` +
+        return `📅 ${formatMessageDate(credit.date)}\n` +
                `🏷️ ${credit.itemNameAndQuantity}\n` +
                `💰 ₹${credit.amount}\n` +
                `🔑 UID: ${credit.uid}`;
@@ -337,14 +343,7 @@ const sendPurchaseHistory = async (to, dateRange, data) => {
     
     const formattedPurchases = purchases.map(purchase => 
       `🏷️ ${purchase.itemNameAndQuantity}\n` +
-      `⏰ ${new Date(purchase.date).toLocaleString('en-IN', {
-        day: '2-digit',
-        month: 'short',
-        year: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-      })}\n` +
+      `⏰ ${formatMessageDate(purchase.date)}\n` +
       `💰 Buy: ₹${purchase.purchasePrice}\n` +
       `💵 Sell: ₹${purchase.sellingPrice}\n` +
       `🔑 UID: ${purchase.uid}`
@@ -401,7 +400,7 @@ const sendSalesHistory = async (to, dateRange, sales) => {
       `💰 *Grand Total: ₹${grandTotal}*\n\n` +
       `*Daily Breakdown:*\n\n` +
       sales.map(sale => 
-        `📅 ${new Date(sale.date).toLocaleDateString('en-IN')}\n` +
+        `📅 ${formatMessageDate(sale.date)}\n` +
         `🌐 Online: ₹${sale.onlineSales}\n` +
         `🏪 Offline: ₹${sale.offlineSales}\n` +
         `💰 Total: ₹${sale.totalSales}`

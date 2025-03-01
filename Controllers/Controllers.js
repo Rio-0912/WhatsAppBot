@@ -24,6 +24,8 @@ const { createHisab, getHisabByUser, updateHisab } = require("./HisabController"
 const { Credit, Hisab } = require('../Models/Modals');
 const mongoose = require('mongoose');
 const logger = require("../utils/logger");
+const { getIndianTime, formatIndianTime } = require('../utils/dateHelper');
+const moment = require('moment-timezone');
 
 
 const userState = {};
@@ -220,58 +222,23 @@ const handleDeleteBuy = async (userId, uid) => {
 };
 
 const handleGetBuy = async (userId, dateRange) => {
-  try {
-    if (!dateRange) {
-      await sendErrorMessage(userId, "❌ Please provide a date. Example: get buy 27.02.24");
-      return;
-    }
-
-    let startDate, endDate;
-
-    if (dateRange.includes('-')) {
-      // Handle date range (e.g., 27.02.24-29.02.24)
-      const [start, end] = dateRange.split('-').map(d => d.trim());
-      startDate = parseDateString(start);
-      endDate = parseDateString(end);
-      // Include the entire end date
-      endDate.setDate(endDate.getDate() + 1);
-    } else {
-      // Handle single date (e.g., 27.02.24)
-      startDate = parseDateString(dateRange);
-      endDate = new Date(startDate);
-      endDate.setDate(endDate.getDate() + 1);
-    }
-
-    if (!startDate || !endDate) {
-      await sendErrorMessage(userId, "❌ Invalid date format. Use: DD.MM.YY or DD.MM.YY-DD.MM.YY");
-      return;
-    }
-
-    const reqMock = { 
-      query: { 
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString()
-      } 
-    };
-
-    const resMock = {
-      status: (code) => ({
-        json: async (data) => {
-          if (data.success && data.data.purchases?.length > 0) {
-            await sendPurchaseHistory(userId, dateRange, data.data);
-          } else {
-            await sendErrorMessage(userId, `❌ No purchases found for ${dateRange}`);
-          }
-          return data;
+    try {
+        if (!dateRange) {
+            await sendErrorMessage(userId, "❌ Please provide a date. Example: get buy 27.02.24");
+            return;
         }
-      })
-    };
 
-    await getPurchasesByDateRange(reqMock, resMock);
-  } catch (error) {
-    console.error("Error in handleGetBuy:", error);
-    await sendErrorMessage(userId, "❌ Error retrieving purchase history");
-  }
+        const result = await getPurchasesByDateRange(dateRange);
+        
+        if (result.success) {
+            await sendPurchaseHistory(userId, dateRange, result.data);
+        } else {
+            await sendErrorMessage(userId, result.error);
+        }
+    } catch (error) {
+        console.error("Error in handleGetBuy:", error);
+        await sendErrorMessage(userId, "❌ Error retrieving purchase data");
+    }
 };
 
 // Helper function to parse date strings
@@ -293,19 +260,8 @@ const handleGetSales = async (userId, dateRange) => {
       return;
     }
 
-    let startDate, endDate;
-    if (dateRange.includes('-')) {
-      // Date range case
-      const [start, end] = dateRange.split('-');
-      startDate = convertToDate(start);
-      endDate = convertToDate(end);
-      endDate.setDate(endDate.getDate() + 1); // Include the end date fully
-    } else {
-      // Single date case
-      startDate = convertToDate(dateRange);
-      endDate = new Date(startDate);
-      endDate.setDate(endDate.getDate() + 1);
-    }
+    const startDate = moment(parseDateString(dateRange)).tz('Asia/Kolkata');
+    const endDate = moment(startDate).tz('Asia/Kolkata');
 
     const reqMock = { 
       query: { 
@@ -339,8 +295,7 @@ const handleAddSales = async (userId, onlineSales, offlineSales) => {
       body: {
         onlineSales,
         offlineSales,
-        totalSales: onlineSales + offlineSales,
-        date: new Date()
+        totalSales: onlineSales + offlineSales
       }
     };
     const resMock = {
@@ -497,9 +452,8 @@ const handleAddBuy = async (userId, itemName, purchasePrice, sellingPrice) => {
       body: {
         data: [{
           itemNameAndQuantity: itemName,
-          purchasePrice,
-          sellingPrice,
-          date: new Date()
+          purchasePrice: parseFloat(purchasePrice),
+          sellingPrice: parseFloat(sellingPrice)
         }]
       }
     };

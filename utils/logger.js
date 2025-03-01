@@ -1,14 +1,16 @@
+const moment = require('moment-timezone');
+
 const logger = {
   checkpoint: (message, data = {}) => {
     console.log(`[CHECKPOINT] ${message}`, {
-      timestamp: new Date().toISOString(),
+      timestamp: moment().tz('Asia/Kolkata').format('YYYY-MM-DD HH:mm:ss'),
       ...data
     });
   },
 
   error: (message, error) => {
     console.error(`[ERROR] ${message}`, {
-      timestamp: new Date().toISOString(),
+      timestamp: moment().tz('Asia/Kolkata').format('YYYY-MM-DD HH:mm:ss'),
       error: error.message,
       stack: error.stack
     });
@@ -17,7 +19,7 @@ const logger = {
   debug: (message, data = {}) => {
     if (process.env.NODE_ENV !== 'production') {
       console.log(`[DEBUG] ${message}`, {
-        timestamp: new Date().toISOString(),
+        timestamp: moment().tz('Asia/Kolkata').format('YYYY-MM-DD HH:mm:ss'),
         ...data
       });
     }

@@ -19,7 +19,7 @@ const createHisab = async (req, res = null) => {
         const hisab = new Hisab({
             username,
             amount: Number(amount),
-            date: date || new Date(), // Use provided date or current timestamp
+            // date: date || new Date(), // Use provided date or current timestamp
             previousBalance: Number(previousBalance || 0), // Store total balance before this payment
             uid
         });

@@ -1,6 +1,8 @@
 const { Buy } = require('../Models/Modals');
 const { log } = console;
 const { generateUID } = require('../MiddleWare/Sequence'); // Import generateUID
+const moment = require('moment-timezone');
+const logger = require('../utils/logger');
 
 // Modified to handle array of items
 const createBuy = async (req, res) => {
@@ -22,7 +24,7 @@ const createBuy = async (req, res) => {
                 purchasePrice: item.purchasePrice,
                 sellingPrice: item.sellingPrice,
                 uid,
-                date: new Date(),
+                date: moment().tz('Asia/Kolkata').toDate() // Explicitly set IST date
             });
 
             const savedItem = await buy.save();
@@ -70,33 +72,94 @@ const getPurchaseByUid = async (req, res) => {
 };
 
 // Get purchases by date range
-const getPurchasesByDateRange = async (req, res) => {
+const getPurchasesByDateRange = async (dateStr) => {
     try {
-        const { startDate, endDate } = req.query;
-        
+        if (!dateStr || typeof dateStr !== 'string') {
+            return {
+                success: false,
+                error: 'Invalid date format. Please use DD.MM.YY'
+            };
+        }
+
+        logger.checkpoint('Processing date query:', { dateStr });
+
+        // Handle date range query (e.g., "27.2.25-1.3.25")
+        if (dateStr.includes('-')) {
+            const [startDateStr, endDateStr] = dateStr.split('-');
+            
+            // Parse start date
+            const [startDay, startMonth, startYear] = startDateStr.trim().split('.');
+            const startDate = moment.tz(`20${startYear}-${startMonth}-${startDay}`, 'YYYY-MM-DD', 'Asia/Kolkata').startOf('day');
+            
+            // Parse end date
+            const [endDay, endMonth, endYear] = endDateStr.trim().split('.');
+            const endDate = moment.tz(`20${endYear}-${endMonth}-${endDay}`, 'YYYY-MM-DD', 'Asia/Kolkata').endOf('day');
+
+            logger.checkpoint('Date range query:', {
+                start: startDate.format('YYYY-MM-DD HH:mm:ss'),
+                end: endDate.format('YYYY-MM-DD HH:mm:ss')
+            });
+
+            const purchases = await Buy.find({
+                date: {
+                    $gte: startDate.toDate(),
+                    $lte: endDate.toDate()
+                }
+            }).sort({ date: 1 });
+
+            return processPurchases(purchases, `${startDateStr} to ${endDateStr}`);
+        }
+
+        // Handle single date query (e.g., "1.3.25")
+        const [day, month, year] = dateStr.trim().split('.');
+        const queryDate = moment.tz(`20${year}-${month}-${day}`, 'YYYY-MM-DD', 'Asia/Kolkata');
+        const startOfDay = queryDate.clone().startOf('day');
+        const endOfDay = queryDate.clone().endOf('day');
+
+        logger.checkpoint('Single date query:', {
+            date: queryDate.format('YYYY-MM-DD'),
+            start: startOfDay.format('YYYY-MM-DD HH:mm:ss'),
+            end: endOfDay.format('YYYY-MM-DD HH:mm:ss')
+        });
+
         const purchases = await Buy.find({
             date: {
-                $gte: new Date(startDate),
-                $lte: new Date(endDate)
+                $gte: startOfDay.toDate(),
+                $lte: endOfDay.toDate()
             }
-        }).sort({ date: -1 });
+        }).sort({ date: 1 });
 
-        // Calculate total amount
-        const totalPurchaseAmount = purchases.reduce((sum, purchase) => sum + purchase.purchasePrice, 0);
-        const totalSellingAmount = purchases.reduce((sum, purchase) => sum + purchase.sellingPrice, 0);
+        return processPurchases(purchases, dateStr);
 
-        res.status(200).json({ 
-            success: true, 
-            data: { 
-                purchases, 
-                totalPurchaseAmount,
-                totalSellingAmount 
-            } 
-        });
     } catch (error) {
-        log('Error in getPurchasesByDateRange:', error);
-        res.status(500).json({ success: false, error: error.message });
+        logger.error('Error in getPurchasesByDateRange:', error);
+        return {
+            success: false,
+            error: 'Error retrieving purchase data'
+        };
     }
+};
+
+// Helper function to process purchases
+const processPurchases = (purchases, dateStr) => {
+    if (purchases.length === 0) {
+        return {
+            success: false,
+            error: `No purchases found for ${dateStr}`
+        };
+    }
+
+    const totalPurchaseAmount = purchases.reduce((sum, p) => sum + p.purchasePrice, 0);
+    const totalSellingAmount = purchases.reduce((sum, p) => sum + p.sellingPrice, 0);
+
+    return {
+        success: true,
+        data: {
+            purchases,
+            totalPurchaseAmount,
+            totalSellingAmount
+        }
+    };
 };
 
 // Update purchase record

@@ -5,7 +5,7 @@ const rateLimit = require('express-rate-limit');
 const { ConnectionManager } = require('./MiddleWare/ConnectionManager');
 const ErrorHandler = require('./MiddleWare/ErrorHandler');
 const { log } = console;
-const { audioHandle, handleGetCredit, handleDeleteCredit, handleDeleteBuy, handleGetBuy, handleGetSales, handleHisab } = require("./Controllers/Controllers");
+const { audioHandle, handleGetCredit, handleDeleteCredit, handleDeleteBuy, handleGetBuy, handleGetSales, handleHisab, handleAddSales, handleAddBuy } = require("./Controllers/Controllers");
 const { mistralHandle } = require("./Controllers/AiController");
 const { 
   getMessageContext, 
