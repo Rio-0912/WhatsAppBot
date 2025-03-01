@@ -1,5 +1,3 @@
-const { redis } = require('./QueueManager');
-
 class ErrorHandler {
   static async handleError(error, context) {
     console.error(`Error in ${context}:`, error);
@@ -8,14 +6,6 @@ class ErrorHandler {
     if (process.env.NODE_ENV === 'production') {
       // Sentry.captureException(error);
     }
-
-    // Store error in Redis for analysis
-    await redis.lpush('error_logs', JSON.stringify({
-      timestamp: new Date(),
-      context,
-      error: error.message,
-      stack: error.stack
-    }));
 
     return {
       success: false,

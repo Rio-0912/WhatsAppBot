@@ -1,8 +1,19 @@
 const axios = require("axios");
-const { log } = require("console");
+const logger = require("../utils/logger");
 
-// Create a message tracking store (you might want to use Redis or a database in production)
+// Create a message store with auto-cleanup
 const messageStore = new Map();
+
+// Cleanup old messages every 10 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of messageStore.entries()) {
+    if (now - value.timestamp > 600000) { // 10 minutes
+      messageStore.delete(key);
+      logger.checkpoint(`Removed stale message: ${key}`);
+    }
+  }
+}, 300000); // Run every 5 minutes
 
 const sendConfirmationMsg = async (to, extractedText, isWholesale = false) => {
   const TOK = process.env.TOK;
@@ -36,45 +47,45 @@ const sendConfirmationMsg = async (to, extractedText, isWholesale = false) => {
         formattedItems;
     }
 
-  const response = await axios.post(
-    "https://graph.facebook.com/v22.0/559603130570722/messages",
-    {
-      messaging_product: "whatsapp",
-      recipient_type: "individual",
-      to: to,
-      type: "interactive",
-      interactive: {
-        type: "button",
-        body: {
-              text: formattedMessage
-        },
-        action: {
-          buttons: [
-            {
-              type: "reply",
-              reply: {
-                id: "confirm_text",
-                title: "✅ Yes, proceed"
+    const response = await axios.post(
+      "https://graph.facebook.com/v22.0/559603130570722/messages",
+      {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: to,
+        type: "interactive",
+        interactive: {
+          type: "button",
+          body: {
+            text: formattedMessage
+          },
+          action: {
+            buttons: [
+              {
+                type: "reply",
+                reply: {
+                  id: "confirm_text",
+                  title: "✅ Yes, proceed"
+                }
+              },
+              {
+                type: "reply",
+                reply: {
+                  id: "cancel_text",
+                  title: "❌ No"
+                }
               }
-            },
-            {
-              type: "reply",
-              reply: {
-                id: "edit_text",
-                title: "✏️ Edit"
-              }
-            }
-          ]
+            ]
+          }
+        }
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${TOK}`,
+          "Content-Type": "application/json"
         }
       }
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${TOK}`,
-        "Content-Type": "application/json"
-      }
-    }
-  );
+    );
 
     if (response.data.messages && response.data.messages[0]) {
       const messageId = response.data.messages[0].id;
@@ -84,12 +95,13 @@ const sendConfirmationMsg = async (to, extractedText, isWholesale = false) => {
         isWholesale,
         to
       });
+      logger.checkpoint('Interactive message sent', { messageId, to });
     }
 
     return response.data;
    
   } catch (error) {
-    console.error("Error sending confirmation message:", error);
+    logger.error("Error sending confirmation message", error);
     return null;
   }
 };
@@ -97,21 +109,6 @@ const sendConfirmationMsg = async (to, extractedText, isWholesale = false) => {
 const getMessageContext = (messageId) => {
   return messageStore.get(messageId);
 };
-
-// Clean up old messages (optional)
-const cleanupOldMessages = () => {
-  const ONE_HOUR = 900000;
-  const now = Date.now();
-  
-  for (const [messageId, data] of messageStore.entries()) {
-    if (now - data.timestamp > ONE_HOUR) {
-      messageStore.delete(messageId);
-    }
-  }
-};
-
-// Run cleanup every hour
-setInterval(cleanupOldMessages, 3600000);
 
 const sendSavedItemsConfirmation = async (to, savedItems) => {
   const TOK = process.env.TOK;

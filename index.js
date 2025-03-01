@@ -1,5 +1,9 @@
+require('dotenv').config();
 const express = require("express");
-const mongoose = require("mongoose");
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const { ConnectionManager } = require('./MiddleWare/ConnectionManager');
+const ErrorHandler = require('./MiddleWare/ErrorHandler');
 const { log } = console;
 const { audioHandle, handleGetCredit, handleDeleteCredit, handleDeleteBuy, handleGetBuy, handleGetSales, handleHisab } = require("./Controllers/Controllers");
 const { mistralHandle } = require("./Controllers/AiController");
@@ -14,17 +18,35 @@ const { createBuy } = require("./Controllers/BuyController");
 const axios = require("axios");
 const { createCredit, getCreditsByUser } = require("./Controllers/CreditController");
 
-const app = express();
-app.use(express.json());
-require('dotenv').config();
-const WEB_VERI_TOK = process.env.WEB_VERI_TOK;
-const TOK = process.env.TOK;
+// Verify MongoDB URI is loaded
+console.log('MongoDB URI:', process.env.MONGO_URI ? 'Found' : 'Missing');
 
-// Connect to MongoDB
-const mongoURI = process.env.MONGO_URI;
-mongoose.connect(mongoURI)
-  .then(() => log("MongoDB connected successfully"))
-  .catch(err => log("MongoDB connection error:", err));
+const app = express();
+
+// Trust proxy - Add this before other middleware
+app.set('trust proxy', 1);
+
+// Security middleware
+app.use(helmet());
+app.use(express.json({ limit: '10mb' }));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 200, // limit each IP to 100 requests per windowMs
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+app.use('/webhook', limiter);
+
+// Initialize connections
+ConnectionManager.initialize();
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  await ConnectionManager.cleanup();
+  process.exit(0);
+});
 
 // log(WEB_VERI_TOK, TOK)
 app.get("/", (req, res) => {
@@ -35,7 +57,7 @@ app.get("/webhook", async (req, res) => {
   const mode = req.query["hub.mode"];
   const challenge = req.query["hub.challenge"];
   const token = req.query["hub.verify_token"];
-  if (mode && token == WEB_VERI_TOK) {
+  if (mode && token == process.env.WEB_VERI_TOK) {
     res.status(200).send(challenge);
   } else {
     res.sendStatus(403);
@@ -125,10 +147,10 @@ const commandHandlers = {
 app.post("/webhook", async (req, res) => {
   try {
     const message = req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-    log("Received message:", message);
+    // log("Received message:", message);
 
     if (message?.type === "audio") {
-      await audioHandle(message, TOK);
+      await audioHandle(message, process.env.TOK);
     }
 
     if (message?.type === "text") {
@@ -232,6 +254,8 @@ app.post("/webhook", async (req, res) => {
   }
 });
 
-app.listen(3000, () => {
-  console.log("Server running on port 3000...");
+// Start server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });

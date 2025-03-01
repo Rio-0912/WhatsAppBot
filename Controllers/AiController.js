@@ -2,6 +2,7 @@ const { log } = require("console");
 const fs = require("fs");
 const { extractTypeAndArray } = require('../MiddleWare/HelperAiFunc')
 const { sendConfirmationMsg } = require('../MiddleWare/WhatsAppSendBacks')
+const logger = require('../utils/logger')
 // const audioFile = require('./media/media_file.ogg')
 
 const wholesaleMistralHandle = async (msg) => {
@@ -165,51 +166,47 @@ const mistralHandle = async (msg, flag) => {
 };
 
 
-const whispherHandle = async (wavFilePath, to) => {
-  const { Client } = await import("@gradio/client");
-
-  const audioBuffer = fs.readFileSync(wavFilePath);
-  const exampleAudio = new Blob([audioBuffer], { type: "audio/wav" });
-
-  const client = await Client.connect("Rio0913/openai-whisper-large-v3-turbo");
-  const result = await client.predict("/predict", {
-    param_0: exampleAudio,
-  });
-
-  console.log(result.data);
-  const match = result.data[0].match(/text=['"](.*?)['"]/);
-
-  if (match) {
-    let extractedText = match[1].trim(); // Remove leading/trailing spaces
-    extractedText = extractedText.replace(/^["'\s]+|["'\s]+$/g, ""); 
-    log(extractedText);
+const whispherHandle = async (audioBlob, to) => {
+  try {
+    const { Client } = await import("@gradio/client");
+    logger.checkpoint('Starting Whisper processing');
     
-    const wholesale = await wholesaleMistralHandle(extractedText);
-    log(wholesale);
+    const client = await Client.connect("Rio0913/openai-whisper-large-v3-turbo");
+    const result = await client.predict("/predict", {
+      param_0: audioBlob,
+    });
+    logger.checkpoint('Whisper processing complete', { result: result.data });
 
-    try {
-      if (wholesale === "true") {
-        log("wholesale");
-        const jsonArray = await mistralHandle(extractedText, true);
-        const textArray = `${jsonArray}`;
-        
-        log(to, textArray);
-        const query = await sendConfirmationMsg(to, textArray, true);
-        log(query)
-      } else {
-        const jsonArray = await mistralHandle(extractedText, false);
-        const textArray = `${jsonArray}`;
-        
-        log(to, textArray);
-        const query = await sendConfirmationMsg(to, textArray, false);
-        log(query)
+    const match = result.data[0].match(/text=['"](.*?)['"]/);
+
+    if (match) {
+      let extractedText = match[1].trim();
+      extractedText = extractedText.replace(/^["'\s]+|["'\s]+$/g, ""); 
+      logger.checkpoint('Text extracted', { extractedText });
+      
+      const wholesale = await wholesaleMistralHandle(extractedText);
+      logger.checkpoint('Wholesale check complete', { wholesale });
+
+      try {
+        if (wholesale === "true") {
+          const jsonArray = await mistralHandle(extractedText, true);
+          logger.checkpoint('Mistral processing complete (wholesale)', { jsonArray });
+          const query = await sendConfirmationMsg(to, jsonArray, true);
+        } else {
+          const jsonArray = await mistralHandle(extractedText, false);
+          logger.checkpoint('Mistral processing complete (retail)', { jsonArray });
+          const query = await sendConfirmationMsg(to, jsonArray, false);
+        }
+      } catch (error) {
+        logger.error("Error processing message with Mistral", error);
       }
-    } catch (error) {
-      console.error("Error processing the message:", error);
+    } else {
+      logger.checkpoint('No text match found in Whisper response');
+      return null;
     }
-  } else {
-    console.log("No match found");
-    return null;
+  } catch (error) {
+    logger.error("Error in whispherHandle", error);
+    throw error;
   }
 };
 
