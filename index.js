@@ -12,7 +12,8 @@ const {
   sendSavedItemsConfirmation, 
   sendErrorMessage, 
   sendCreditHistory,
-  sendHelpMessage 
+  sendHelpMessage,
+  sendConfirmationMsg
 } = require("./MiddleWare/WhatsAppSendBacks");
 const { createBuy } = require("./Controllers/BuyController");
 const axios = require("axios");
@@ -140,7 +141,27 @@ const commandHandlers = {
 
   help: async (userId) => {
     await sendHelpMessage(userId);
-  }
+  },
+
+  wholesale: async (userId, command) => {
+    try {
+      const jsonArray = await mistralHandle(command, true);
+      await sendConfirmationMsg(userId, jsonArray, true);
+    } catch (error) {
+      console.error("Error processing wholesale text:", error);
+      await sendErrorMessage(userId, "❌ Error processing wholesale data");
+    }
+  },
+
+  credit: async (userId, command) => {
+    try {
+      const jsonArray = await mistralHandle(command, false);
+      await sendConfirmationMsg(userId, jsonArray, false);
+    } catch (error) {
+      console.error("Error processing credit text:", error);
+      await sendErrorMessage(userId, "❌ Error processing credit data");
+    }
+  },
 };
 
 // Update the webhook POST handler
@@ -154,16 +175,25 @@ app.post("/webhook", async (req, res) => {
     }
 
     if (message?.type === "text") {
-      const messageText = message.text.body.trim().toLowerCase();
+      const messageText = message.text.body.trim();
       const userId = message.from;
 
-      // Extract command and remaining text
-      const [command, ...args] = messageText.split(' ');
-      
-      if (commandHandlers[command]) {
-        await commandHandlers[command](userId, args.join(' '));
-      } else {
-        await mistralHandle(messageText, userId);
+      // Check if it starts with wholesale
+      if (messageText.toLowerCase().startsWith('wholesale')) {
+        await commandHandlers.wholesale(userId, messageText);
+      }
+      // Check if it contains a number followed by "ka" (for credit)
+      else if (/^\d+\s*ka\b/i.test(messageText)) {
+        await commandHandlers.credit(userId, messageText);
+      }
+      // Handle other commands
+      else {
+        const [command, ...args] = messageText.toLowerCase().split(' ');
+        if (commandHandlers[command]) {
+          await commandHandlers[command](userId, args.join(' '));
+        } else {
+          await mistralHandle(messageText, userId);
+        }
       }
     }
 

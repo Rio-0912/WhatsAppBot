@@ -477,6 +477,36 @@ const handleAddBuy = async (userId, itemName, purchasePrice, sellingPrice) => {
   }
 };
 
+const sendHelpMessage = async (userId) => {
+    const helpText = `🔍 *Available Commands:*
+
+1. *Wholesale Entry:*
+   Type: wholesale item price sellPrice, item2 price2 sellPrice2
+   Example: wholesale tea 343 897, oil 325 986
+
+2. *Credit Entry:*
+   Type: [number] ka item price, item2 price2
+   Example: 518 ka oil 22, potato 44
+
+3. *Get Records:*
+   • get buy [date]
+   • get buy [startDate-endDate]
+   Example: get buy 1.3.25
+           get buy 27.2.25-1.3.25
+
+4. *Delete Records:*
+   • delete buy [UID]
+   • delete credit [UID]
+   Example: delete buy ABC123
+
+5. *Voice Commands:*
+   Send voice message for wholesale or credit entries
+
+Need more help? Contact support.`;
+
+    await sendMessage(userId, helpText);
+};
+
 module.exports = { 
   audioHandle,
   handleGetCredit,
@@ -486,5 +516,6 @@ module.exports = {
   handleGetSales,
   handleHisab,
   handleAddSales,
-  handleAddBuy
+  handleAddBuy,
+  sendHelpMessage
 };
