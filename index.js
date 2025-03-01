@@ -6,7 +6,7 @@ const { ConnectionManager } = require('./MiddleWare/ConnectionManager');
 const ErrorHandler = require('./MiddleWare/ErrorHandler');
 const { log } = console;
 const { audioHandle, handleGetCredit, handleDeleteCredit, handleDeleteBuy, handleGetBuy, handleGetSales, handleHisab, handleAddSales, handleAddBuy } = require("./Controllers/Controllers");
-const { mistralHandle } = require("./Controllers/AiController");
+const { mistralHandle, textMistralHandle } = require("./Controllers/AiController");
 const { 
   getMessageContext, 
   sendSavedItemsConfirmation, 
@@ -145,7 +145,7 @@ const commandHandlers = {
 
   wholesale: async (userId, command) => {
     try {
-      const jsonArray = await mistralHandle(command, true);
+      const jsonArray = await textMistralHandle(command, true);
       await sendConfirmationMsg(userId, jsonArray, true);
     } catch (error) {
       console.error("Error processing wholesale text:", error);
@@ -155,7 +155,7 @@ const commandHandlers = {
 
   credit: async (userId, command) => {
     try {
-      const jsonArray = await mistralHandle(command, false);
+      const jsonArray = await textMistralHandle(command, false);
       await sendConfirmationMsg(userId, jsonArray, false);
     } catch (error) {
       console.error("Error processing credit text:", error);
@@ -178,22 +178,21 @@ app.post("/webhook", async (req, res) => {
       const messageText = message.text.body.trim();
       const userId = message.from;
 
-      // Check if it starts with wholesale
-      if (messageText.toLowerCase().startsWith('wholesale')) {
-        await commandHandlers.wholesale(userId, messageText);
-      }
-      // Check if it contains a number followed by "ka" (for credit)
-      else if (/^\d+\s*ka\b/i.test(messageText)) {
-        await commandHandlers.credit(userId, messageText);
-      }
-      // Handle other commands
-      else {
+      // First check for specific commands (get, delete)
+      if (messageText.toLowerCase().startsWith('get') || messageText.toLowerCase().startsWith('delete')) {
         const [command, ...args] = messageText.toLowerCase().split(' ');
         if (commandHandlers[command]) {
           await commandHandlers[command](userId, args.join(' '));
-        } else {
-          await mistralHandle(messageText, userId);
         }
+      }
+      // Then check for wholesale entries
+      else if (messageText.toLowerCase().startsWith('wholesale')) {
+        await commandHandlers.wholesale(userId, messageText);
+      }
+      // Everything else goes to credit processing
+      else {
+        // Let Mistral handle the natural language parsing
+        await commandHandlers.credit(userId, messageText);
       }
     }
 
