@@ -44,6 +44,9 @@ const mistralHandle = async (msg, flag) => {
     Instructions:  
     - The user will give a **spoken or written shopping list** in **English, Hindi, or Urdu**.
     - Your task is to convert it into a JSON array format as follows:
+    - "${flag
+      ? "I case of wholesale the first word will be wholesale afther that the item name and quantity will be there there is a 50% chance that after the item name there can be quantity defined like 2kg or 2litre/2l or 2pcs/2pc etc. and then purchase price and selling price will be there. and then it will repeat the same for the next item. Also the item name and quantity will should be put in one column of itemNameAndQuantity"
+      : "I case of credit the first word will be the username and then the item name and quantity will be there there is a 50% chance that after the item name there can be quantity defined like 2kg or 2litre/2l or 2pcs/2pc etc. and then the amount will be there. and then it will repeat the same for the next item. Also the item name and quantity will should be put in one column of itemNameAndQuantity"}"
 
     Example Input:
     "${flag
@@ -177,8 +180,8 @@ const textMistralHandle = async (msg, flag) => {
     - Your task is to convert it into a JSON array format as follows:
     - Most of the time the first word will be the username.
     - "${flag
-      ? "I case of wholesale the first word will be wholesale afther that the item name and quantity will be there. and then purchase price and selling price will be there. and then it will repeat the same for the next item. Also the item name and quantity will should be put in one column of itemNameAndQuantity"
-      : "I case of credit the first word will be the username and then the item name and quantity will be there. and then the amount will be there. and then it will repeat the same for the next item. Also the item name and quantity will should be put in one column of itemNameAndQuantity"}"
+      ? "I case of wholesale the first word will be wholesale afther that the item name and quantity will be there there is a 50% chance that after the item name there can be quantity defined like 2kg or 2litre/2l or 2pcs/2pc etc. and then purchase price and selling price will be there. and then it will repeat the same for the next item. Also the item name and quantity will should be put in one column of itemNameAndQuantity"
+      : "I case of credit the first word will be the username and then the item name and quantity will be there there is a 50% chance that after the item name there can be quantity defined like 2kg or 2litre/2l or 2pcs/2pc etc. and then the amount will be there. and then it will repeat the same for the next item. Also the item name and quantity will should be put in one column of itemNameAndQuantity"}"
 
     Example Input:
     "${flag
