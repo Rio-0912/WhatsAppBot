@@ -199,6 +199,14 @@ app.post("/webhook", async (req, res) => {
       else if (messageText.toLowerCase().startsWith('help')){
         await commandHandlers.help(userId);
       }
+      else if (messageText.toLowerCase().startsWith('hisab')){
+        const [username, amount] = messageText.replace('hisab', '').trim().split(' ');
+        await commandHandlers.hisab(userId, username, amount);
+      }
+      else if (messageText.toLowerCase().startsWith('buy')){
+        const [itemName, purchasePrice, sellingPrice] = messageText.replace('buy', '').trim().split(' ');
+        await commandHandlers.buy(userId, itemName, purchasePrice, sellingPrice);
+      }
       // Then check for wholesale entries
       else if (messageText.toLowerCase().startsWith('wholesale')) {
         await commandHandlers.wholesale(userId, messageText);
