@@ -138,6 +138,7 @@ const commandHandlers = {
 
   hisab: async (userId, command) => {
     const parts = command.split(' ');
+    log("Parts:", parts); // Log the parts array t
     if (parts.length !== 2) {
       await sendErrorMessage(userId, "❌ Invalid format. Use: hisab <username> <amount>");
       return;
@@ -200,8 +201,13 @@ app.post("/webhook", async (req, res) => {
         await commandHandlers.help(userId);
       }
       else if (messageText.toLowerCase().startsWith('hisab')){
-        const [username, amount] = messageText.replace('hisab', '').trim().split(' ');
-        await commandHandlers.hisab(userId, username, amount);
+        
+        // const deletedHisab = messageText.replace('hisab ', '');
+        let deletedHisab = messageText.replace('hisab', '').trim();
+
+        console.log(deletedHisab);
+        
+        await commandHandlers.hisab(userId, deletedHisab);
       }
       else if (messageText.toLowerCase().startsWith('buy')){
         const [itemName, purchasePrice, sellingPrice] = messageText.replace('buy', '').trim().split(' ');
