@@ -19,7 +19,7 @@ const {
 } = require("../MiddleWare/WhatsAppSendBacks");
 const { getCreditsByUser, deleteCredit,createCredit } = require("./CreditController");
 const { getPurchasesByDateRange, deletePurchase } = require("./BuyController");
-const { getSalesByDate, getSalesByDateRange } = require("./SalesController");
+const { getSalesByDate, getSalesByDateRange, deleteSales, createSales } = require("./SalesController");
 const { createHisab, getHisabByUser, updateHisab } = require("./HisabController");
 const { Credit, Hisab } = require('../Models/Modals');
 const mongoose = require('mongoose');

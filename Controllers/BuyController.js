@@ -24,7 +24,7 @@ const createBuy = async (req, res) => {
                 purchasePrice: item.purchasePrice,
                 sellingPrice: item.sellingPrice,
                 uid,
-                date: moment().tz('Asia/Kolkata').toDate() // Explicitly set IST date
+                date: moment().tz('Asia/Kolkata').startOf('day').toDate() // Set IST date without time
             });
 
             const savedItem = await buy.save();

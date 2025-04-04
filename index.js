@@ -81,6 +81,11 @@ const commandHandlers = {
         await handleGetSales(userId, salesDateRange);
         break;
       
+      case 'get':
+        const creditDateRange = params.join(' ');
+        await handleGetCredit(userId, creditDateRange);
+        break;
+      
       default:
         // Handle get credit case
         const username = command;
@@ -121,6 +126,8 @@ const commandHandlers = {
 
   sales: async (userId, command) => {
     const parts = command.split(' ');
+
+    log("Sales command:", parts);
     if (parts.length !== 2) {
       await sendErrorMessage(userId, "❌ Invalid format. Use: sales <online> <offline>");
       return;
@@ -184,6 +191,13 @@ app.post("/webhook", async (req, res) => {
         if (commandHandlers[command]) {
           await commandHandlers[command](userId, args.join(' '));
         }
+      }
+      else if (messageText.toLowerCase().startsWith('sales')){
+        let deletedSales = messageText.replace('sales', '').trim();
+        await commandHandlers.sales(userId, deletedSales);
+      }
+      else if (messageText.toLowerCase().startsWith('help')){
+        await commandHandlers.help(userId);
       }
       // Then check for wholesale entries
       else if (messageText.toLowerCase().startsWith('wholesale')) {
