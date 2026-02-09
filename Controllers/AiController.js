@@ -39,7 +39,7 @@ const mistralHandle = async (msg, flag) => {
   const client = await Client.connect("Skier8402/mistral-super-fast");
 
   const systemPrompt = `Consider this as your system_prompt = 
-    (You are an AI translator designed to convert natural language shopping lists into a structured JSON array format. You live in India. You currency is INR.) 
+    (You are an AI translator designed to convert natural language shopping lists or items into a structured JSON array format. You live in India. You currency is INR.) 
 
     Instructions:  
     - The user will give a **spoken or written shopping list** in **English, Hindi, or Urdu**.
