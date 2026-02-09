@@ -4,7 +4,7 @@
 ![Uptime](https://img.shields.io/badge/Uptime-99.9%25-blue)
 ![Team](https://img.shields.io/badge/Team-Resilient_Micro_Squad-orange)
 
-## 🚀 Overview
+##  Overview
 
 **Wasio Ops** is a sophisticated, AI-driven ERP system that operates entirely through WhatsApp. It serves as the central nervous system for business operations, automating sales tracking, inventory management, credit keeping ("Hisab"), and wholesale order processing.
 
@@ -12,15 +12,15 @@ What sets this project apart is its ability to understand the *messy reality* of
 
 ---
 
-## 📖 Origin & Philosophy: AI for the Real World
+##  Origin & Philosophy: AI for the Real World
 
 **"AI was created to solve real-life problems, not just to generate text."**
 
-The inception of **Wasio** came from a personal observation: I saw local shopkeepers suffering daily. They were drowning in the chaos of manual bookkeeping—scribbling "hisab" (credit/debit) on scraps of paper, losing track of inventory, and facing a compounding loss of time that directly ate into their productivity and profits. I realized that for these users, a complex dashboard was useless. They needed something that worked *at the speed of their business*.
+The inception of **Wasio** came from a personal observation: I saw local shopkeepers suffering daily. They were drowning in the chaos of manual bookkeeping scribbling "hisab" (credit/debit) on scraps of paper, losing track of inventory, and facing a compounding loss of time that directly ate into their productivity and profits. I realized that for these users, a complex dashboard was useless. They needed something that worked *at the speed of their business*.
 
 ### The Development Journey
 
-I conceptualized and developed this project in its entirety, transforming a personal vision into a robust enterprise solution. As the sole architect and engineer, I have independently built every component of the system, ensuring that each layer—from the AI pipeline to the database schema—is optimized for the speed and reliability required by real-world business operations.
+I conceptualized and developed this project in its entirety, transforming a personal vision into a robust enterprise solution. As the sole architect and engineer, I have independently built every component of the system, ensuring that each layer from the AI pipeline to the database schema is optimized for the speed and reliability required by real-world business operations.
 
 This project isn't just code; it's a testament to solving a gritty, real-world productivity crisis with sophisticated, resilient engineering.
 
@@ -58,7 +58,7 @@ The system follows a micro-service inspired event-driven architecture, using Met
 ---
 
 
-## ⚡ Key Features
+##  Key Features
 
 ### 1. The "Hisab" Engine
 Orchestrates complex credit and debit ledgers. Users can simply say *"Clear 500 from Raju's account"* and the system resolves the user, updates the balance, and sends a receipt.
@@ -113,7 +113,7 @@ mongoose.connection.on('disconnected', () => {
 
 ---
 
-## 🚀 Getting Started
+##  Getting Started
 
 1.  **Clone the repository**
     ```bash
