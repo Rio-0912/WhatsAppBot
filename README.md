@@ -117,7 +117,7 @@ mongoose.connection.on('disconnected', () => {
 
 1.  **Clone the repository**
     ```bash
-    git clone https://github.com/yourusername/lucknowi-arts-backend.git
+    git clone https://github.com/Rio-0912/WhatsAppBot.git
     ```
 
 2.  **Install Dependencies**
